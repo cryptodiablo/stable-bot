@@ -1,6 +1,6 @@
 {
-  "version": "0.1.1",
+  "version": "0.1.2",
   "target": "x86_64-unknown-linux-gnu",
-  "sha256": "e7a2052d57dbfab02e5cc933f8ba2b4d2bda3f1779967f0b783ad167d864729f",
-  "size": 8032928
+  "sha256": "c8a1d0d748b4b1bfbaf6e3923baaffc24193c9cb19e611a10303b4bdd9847fbd",
+  "size": 8300496
 }

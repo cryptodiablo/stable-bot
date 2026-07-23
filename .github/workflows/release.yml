@@ -1,0 +1,68 @@
+name: Publish Stable Bot release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stable-bot-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged files
+        uses: actions/checkout@v4
+
+      - name: Verify public package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(jq -er '.version' latest.json)"
+          manifest_target="$(jq -er '.target' latest.json)"
+          manifest_sha="$(jq -er '.sha256' latest.json)"
+          manifest_size="$(jq -er '.size' latest.json)"
+          actual_sha="$(sha256sum sender | awk '{print $1}')"
+          actual_size="$(stat -c '%s' sender)"
+
+          test "$manifest_version" = "$version"
+          test "$manifest_target" = "x86_64-unknown-linux-gnu"
+          test "$manifest_sha" = "$actual_sha"
+          test "$manifest_size" = "$actual_size"
+          test -x sender
+          test -s stable.toml
+
+      - name: Build minimal archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -czf stable-bot-linux-x86_64.tar.gz \
+            sender stable.toml
+
+      - name: Create immutable GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            sender \
+            stable-bot-linux-x86_64.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --latest \
+            --title "Stable Bot $GITHUB_REF_NAME" \
+            --notes "Готовый Linux x86_64 релиз Stable Bot. Архив содержит только sender и stable.toml."
