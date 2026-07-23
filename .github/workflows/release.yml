@@ -46,7 +46,7 @@ jobs:
             throw "sender.exe did not start with the expected version: $version"
           }
 
-      - name: Exercise Windows files and self-update replacement
+      - name: Exercise Windows wallet creation
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -54,20 +54,45 @@ jobs:
           New-Item -ItemType Directory -Path $smoke -Force | Out-Null
           Copy-Item .\sender.exe (Join-Path $smoke "helper.exe")
           Copy-Item .\sender.exe (Join-Path $smoke "target.exe")
-
           Push-Location $smoke
           try {
             & .\target.exe create-wallet --output .\wallet.key
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\wallet.key)) {
               throw "Windows wallet creation failed"
             }
+          }
+          finally {
+            Pop-Location
+          }
 
-            & .\helper.exe __apply-windows-update `
+      - name: Exercise Windows self-update replacement
+        shell: pwsh
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP "stable-bot-windows-smoke"
+          Push-Location $smoke
+          try {
+            $output = & .\helper.exe __apply-windows-update `
               --target .\target.exe `
-              --backup .\target.exe.previous
-            if ($LASTEXITCODE -ne 0) {
-              throw "Windows self-update helper failed"
+              --backup .\target.exe.previous 2>&1
+            $exitCode = $LASTEXITCODE
+            $output | ForEach-Object { Write-Host $_ }
+            if ($exitCode -ne 0) {
+              $detail = ($output | Out-String).Trim() -replace "`r|`n", " "
+              Write-Output "::error title=Windows self-update failed::$detail"
+              exit $exitCode
             }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Verify replaced Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $smoke = Join-Path $env:RUNNER_TEMP "stable-bot-windows-smoke"
+          Push-Location $smoke
+          try {
             if (-not (Test-Path .\target.exe.previous)) {
               throw "Windows self-update did not preserve the previous binary"
             }
