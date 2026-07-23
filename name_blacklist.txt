@@ -1,0 +1,2 @@
+# One case-insensitive token name or ticker fragment per line.
+# Empty lines and lines beginning with # are ignored.
