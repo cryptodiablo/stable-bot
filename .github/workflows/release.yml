@@ -2,6 +2,8 @@ name: Publish Stable Bot release
 
 on:
   push:
+    branches:
+      - "main"
     tags:
       - "v*"
 
@@ -13,7 +15,80 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  windows-smoke:
+    name: Windows x64 smoke test
+    runs-on: windows-latest
+    steps:
+      - name: Check out published files
+        uses: actions/checkout@v4
+
+      - name: Verify and launch sender.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $manifest = Get-Content -Raw .\latest.json | ConvertFrom-Json
+          if ($manifest.windows.target -ne "x86_64-pc-windows-msvc") {
+            throw "Unexpected Windows target: $($manifest.windows.target)"
+          }
+          if ($manifest.windows.name -ne "sender.exe") {
+            throw "Unexpected Windows asset name: $($manifest.windows.name)"
+          }
+          $actualHash = (Get-FileHash .\sender.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $actualSize = (Get-Item .\sender.exe).Length
+          if ($actualHash -ne $manifest.windows.sha256) {
+            throw "sender.exe SHA-256 mismatch"
+          }
+          if ($actualSize -ne [long]$manifest.windows.size) {
+            throw "sender.exe size mismatch"
+          }
+          $version = & .\sender.exe --version
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch "sender $($manifest.version)") {
+            throw "sender.exe did not start with the expected version: $version"
+          }
+
+      - name: Exercise Windows files and self-update replacement
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $smoke = Join-Path $env:RUNNER_TEMP "stable-bot-windows-smoke"
+          New-Item -ItemType Directory -Path $smoke -Force | Out-Null
+          Copy-Item .\sender.exe (Join-Path $smoke "helper.exe")
+          Copy-Item .\sender.exe (Join-Path $smoke "target.exe")
+
+          Push-Location $smoke
+          try {
+            & .\target.exe create-wallet --output .\wallet.key
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path .\wallet.key)) {
+              throw "Windows wallet creation failed"
+            }
+
+            & .\helper.exe __apply-windows-update `
+              --target .\target.exe `
+              --backup .\target.exe.previous
+            if ($LASTEXITCODE -ne 0) {
+              throw "Windows self-update helper failed"
+            }
+            if (-not (Test-Path .\target.exe.previous)) {
+              throw "Windows self-update did not preserve the previous binary"
+            }
+            $helperHash = (Get-FileHash .\helper.exe -Algorithm SHA256).Hash
+            $targetHash = (Get-FileHash .\target.exe -Algorithm SHA256).Hash
+            if ($helperHash -ne $targetHash) {
+              throw "Windows self-update installed different bytes"
+            }
+            & .\target.exe --version
+            if ($LASTEXITCODE -ne 0) {
+              throw "Updated sender.exe did not start"
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
   release:
+    name: Publish immutable release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Check out tagged files
@@ -26,20 +101,35 @@ jobs:
 
           version="${GITHUB_REF_NAME#v}"
           manifest_version="$(jq -er '.version' latest.json)"
-          manifest_target="$(jq -er '.target' latest.json)"
-          manifest_sha="$(jq -er '.sha256' latest.json)"
-          manifest_size="$(jq -er '.size' latest.json)"
-          actual_sha="$(sha256sum sender | awk '{print $1}')"
-          actual_size="$(stat -c '%s' sender)"
+          linux_target="$(jq -er '.linux.target' latest.json)"
+          linux_name="$(jq -er '.linux.name' latest.json)"
+          linux_sha="$(jq -er '.linux.sha256' latest.json)"
+          linux_size="$(jq -er '.linux.size' latest.json)"
+          windows_target="$(jq -er '.windows.target' latest.json)"
+          windows_name="$(jq -er '.windows.name' latest.json)"
+          windows_sha="$(jq -er '.windows.sha256' latest.json)"
+          windows_size="$(jq -er '.windows.size' latest.json)"
+          actual_linux_sha="$(sha256sum sender | awk '{print $1}')"
+          actual_linux_size="$(stat -c '%s' sender)"
+          actual_windows_sha="$(sha256sum sender.exe | awk '{print $1}')"
+          actual_windows_size="$(stat -c '%s' sender.exe)"
 
           test "$manifest_version" = "$version"
-          test "$manifest_target" = "x86_64-unknown-linux-gnu"
-          test "$manifest_sha" = "$actual_sha"
-          test "$manifest_size" = "$actual_size"
+          test "$linux_target" = "x86_64-unknown-linux-gnu"
+          test "$linux_name" = "sender"
+          test "$linux_sha" = "$actual_linux_sha"
+          test "$linux_size" = "$actual_linux_size"
+          test "$windows_target" = "x86_64-pc-windows-msvc"
+          test "$windows_name" = "sender.exe"
+          test "$windows_sha" = "$actual_windows_sha"
+          test "$windows_size" = "$actual_windows_size"
           test -x sender
+          test -s sender.exe
           test -s stable.toml
+          file sender | grep -q 'ELF 64-bit LSB.*x86-64'
+          file sender.exe | grep -Eq 'PE32\+.*x86-64'
 
-      - name: Build minimal archive
+      - name: Build minimal archives
         shell: bash
         run: |
           set -euo pipefail
@@ -51,6 +141,7 @@ jobs:
             --numeric-owner \
             -czf stable-bot-linux-x86_64.tar.gz \
             sender stable.toml
+          zip -X -9 stable-bot-windows-x86_64.zip sender.exe stable.toml
 
       - name: Create immutable GitHub release
         shell: bash
@@ -60,9 +151,11 @@ jobs:
           set -euo pipefail
           gh release create "$GITHUB_REF_NAME" \
             sender \
+            sender.exe \
             stable-bot-linux-x86_64.tar.gz \
+            stable-bot-windows-x86_64.zip \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --latest \
             --title "Stable Bot $GITHUB_REF_NAME" \
-            --notes "Готовый Linux x86_64 релиз Stable Bot. Архив содержит только sender и stable.toml."
+            --notes "Stable Bot для Linux x86_64 и Windows 10/11 x64. Выберите архив для своей системы; внутри только бинарник и stable.toml."

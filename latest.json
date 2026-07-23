@@ -1,6 +1,18 @@
 {
-  "version": "0.1.6",
+  "version": "0.2.0",
   "target": "x86_64-unknown-linux-gnu",
-  "sha256": "88b0815eab00b0df1bdf57a0d4cc3dfcb2f345de2c0acd3a66449d635bd6fdb1",
-  "size": 8325184
+  "sha256": "4e5a9e9137755e4c24ce2f2fbb6dc2b31ee03adf5642d33122a408dbf8d532ba",
+  "size": 8325456,
+  "linux": {
+    "target": "x86_64-unknown-linux-gnu",
+    "name": "sender",
+    "sha256": "4e5a9e9137755e4c24ce2f2fbb6dc2b31ee03adf5642d33122a408dbf8d532ba",
+    "size": 8325456
+  },
+  "windows": {
+    "target": "x86_64-pc-windows-msvc",
+    "name": "sender.exe",
+    "sha256": "2594b2966d3f4f69a9d9a5e625cd75fd5171400909f28d454b091029bbceaaa4",
+    "size": 7608832
+  }
 }

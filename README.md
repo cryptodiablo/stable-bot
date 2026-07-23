@@ -2,9 +2,9 @@
 
 Standalone-бот для новых токенов в **Stable mainnet** (chain ID `988`). Он покупает подходящие
 запуски, выходит по grid / AFK / stop-loss правилам и хранит историю девов в `stable.db`.
-Для работы нужен только Linux x86_64 — Rust, Python и Docker не требуются.
+Поддерживаются Linux x86_64 и Windows 10/11 x64. Rust, Python и Docker не требуются.
 
-## Быстрый старт
+## Быстрый старт — Linux
 
 ```bash
 mkdir stable-bot && cd stable-bot
@@ -12,6 +12,18 @@ curl -fL https://github.com/cryptodiablo/stable-bot/releases/latest/download/sta
 tar -xzf stable-bot.tar.gz
 chmod +x sender
 ./sender create-wallet --output ./wallet.key
+```
+
+## Быстрый старт — Windows
+
+Откройте PowerShell и выполните:
+
+```powershell
+mkdir stable-bot
+cd stable-bot
+Invoke-WebRequest https://github.com/cryptodiablo/stable-bot/releases/latest/download/stable-bot-windows-x86_64.zip -OutFile stable-bot.zip
+Expand-Archive .\stable-bot.zip -DestinationPath . -Force
+.\sender.exe create-wallet --output .\wallet.key
 ```
 
 Команда напечатает адрес кошелька. Пополните его нативным `USDT0` в сети Stable, откройте
@@ -31,6 +43,8 @@ minimum_developer_buy = 10
 ./sender check
 ./sender
 ```
+
+В Windows те же команды запускаются как `.\sender.exe check` и `.\sender.exe`.
 
 В режиме `shadow` бот только наблюдает. Для реальных сделок установите `mode = "live"`, снова
 выполните `./sender check` и запустите `./sender`.
@@ -68,13 +82,15 @@ minimum_developer_buy = 10
 ./sender --help
 ```
 
+В PowerShell замените `./sender` на `.\sender.exe`; названия команд и настройки одинаковы.
+
 При обычном запуске `sender` сам проверяет GitHub, обновляет только бинарник и перезапускается.
 Настройки, ключ, база и позиции при обновлении не меняются.
 
 ## Рабочие файлы
 
-- `sender` и `stable.toml` входят в релиз;
-- `wallet.key` создаётся пользователем и должен иметь права `0600`;
+- `sender`/`sender.exe` и `stable.toml` входят в соответствующий релиз;
+- `wallet.key` создаётся пользователем; в Linux нужны права `0600`, в Windows не выдавайте доступ посторонним пользователям;
 - `stable.db`, `name_blacklist.txt` и `stable-state/` создаются автоматически.
 
 Держите эти файлы в одном каталоге и не запускайте две копии на одном кошельке.
