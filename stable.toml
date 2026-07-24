@@ -7,6 +7,8 @@ buy_size_mode = "developer" # Размер buy: "developer" повторяет b
 fixed_buy_amount = 100 # Размер нашего buy в USDT0 при buy_size_mode = "fixed".
 developer_buy_cap = 100 # Максимум нашего buy в USDT0 при buy_size_mode = "developer".
 minimum_developer_buy = 10 # Минимальный первоначальный buy дева в USDT0 для входа.
+below_minimum_fixed_buy_amount = "off" # Фиксированный наш buy в USDT0, если buy дева ниже minimum_developer_buy; "off" сохраняет skip.
+maximum_developer_buy = 10 # При первоначальном buy дева выше этого значения в USDT0 пропускаем вход; "off" отключает верхний лимит.
 minimum_wallet_reserve = 2 # Сколько нативного USDT0 всегда оставлять на кошельке сверх buy и комиссии.
 skip_if_position_open = true # Не открывать новый токен, пока предыдущая позиция или покупка не завершена.
 

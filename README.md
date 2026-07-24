@@ -35,6 +35,8 @@ buy_size_mode = "developer"
 fixed_buy_amount = 100
 developer_buy_cap = 100
 minimum_developer_buy = 10
+below_minimum_fixed_buy_amount = "off"
+maximum_developer_buy = 10
 ```
 
 Проверьте готовность и запустите:
@@ -61,6 +63,10 @@ minimum_developer_buy = 10
 
 - `buy_size_mode = "developer"` — повторить initial buy дева, но не выше `developer_buy_cap`;
 - `buy_size_mode = "fixed"` — всегда покупать на `fixed_buy_amount`.
+- если initial buy дева ниже `minimum_developer_buy`, бот использует
+  `below_minimum_fixed_buy_amount`; значение `"off"` сохраняет прежний skip;
+- если initial buy дева выше `maximum_developer_buy`, бот всегда пропускает вход; `"off"`
+  отключает этот верхний лимит.
 
 `skip_if_position_open = true` запрещает новую покупку, пока предыдущая позиция или кампания не
 завершена. Grid задаётся двумя массивами одинаковой длины, а AFK — правилами вида
