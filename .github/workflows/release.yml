@@ -110,6 +110,86 @@ jobs:
             Pop-Location
           }
 
+      - name: Check Stable RPC and contracts from Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
+          $smoke = Join-Path $env:RUNNER_TEMP "stable-bot-windows-smoke"
+          Copy-Item .\stable.toml (Join-Path $smoke "stable.toml") -Force
+          Push-Location $smoke
+          try {
+            $ready = $false
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              & .\target.exe --config .\stable.toml check `
+                1> .\check.json 2> .\check.err
+              if ($LASTEXITCODE -eq 0) {
+                $report = Get-Content -Raw .\check.json | ConvertFrom-Json
+                if ($report.runtime.ready -eq $true -and $report.runtime.chainId -eq 988) {
+                  $ready = $true
+                  break
+                }
+              }
+              Start-Sleep -Seconds 3
+            }
+            if (-not $ready) {
+              $detail = Get-Content -Raw .\check.err -ErrorAction SilentlyContinue
+              Write-Output "::error title=Windows Stable network check failed::$detail"
+              exit 1
+            }
+          }
+          finally {
+            Pop-Location
+          }
+
+      - name: Reach READY in Windows shadow mode
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $smoke = Join-Path $env:RUNNER_TEMP "stable-bot-windows-smoke"
+          $stdout = Join-Path $smoke "shadow.stdout.log"
+          $stderr = Join-Path $smoke "shadow.stderr.log"
+          $process = Start-Process `
+            -FilePath (Join-Path $smoke "target.exe") `
+            -ArgumentList "--config", (Join-Path $smoke "stable.toml"), "run" `
+            -WorkingDirectory $smoke `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -PassThru
+          $ready = $false
+          try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(120)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if (Test-Path $stderr) {
+                $log = Get-Content -Raw $stderr -ErrorAction SilentlyContinue
+                if ($log -match "\[READY\].*listening for new launches") {
+                  $ready = $true
+                  break
+                }
+              }
+              if ($process.HasExited) {
+                break
+              }
+              Start-Sleep -Milliseconds 500
+              $process.Refresh()
+            }
+          }
+          finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+              Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+            }
+          }
+          $finalLog = Get-Content -Raw $stderr -ErrorAction SilentlyContinue
+          if (-not $ready) {
+            $detail = $finalLog -replace "`r|`n", " "
+            Write-Output "::error title=Windows SHADOW did not become ready::$detail"
+            exit 1
+          }
+          if ($finalLog -match "Stable (pending )?websocket disconnected") {
+            throw "Noisy websocket disconnect warning returned to the Windows console"
+          }
+
   release:
     name: Publish immutable release
     if: startsWith(github.ref, 'refs/tags/v')
