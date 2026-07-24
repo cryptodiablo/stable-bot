@@ -12,7 +12,7 @@
   "windows": {
     "target": "x86_64-pc-windows-msvc",
     "name": "sender.exe",
-    "sha256": "2594b2966d3f4f69a9d9a5e625cd75fd5171400909f28d454b091029bbceaaa4",
+    "sha256": "198c643f9c506ede03c3101593b1d96701d07fb74d894bf77bcf84fb9d5f5c36",
     "size": 7608832
   }
 }
