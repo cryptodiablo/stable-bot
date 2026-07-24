@@ -84,6 +84,7 @@ maximum_developer_buy = 10
 ./sender db-report               # статистика stable.db
 ./sender update --check          # проверить обновление
 ./sender update                  # установить новую версию
+./sender repair                  # безопасно починить зависший approve/sell в журнале
 ./sender create-wallet --output ./wallet.key
 ./sender --help
 ```
